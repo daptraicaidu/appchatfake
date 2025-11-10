@@ -1,6 +1,6 @@
 #pragma once
 #include "afxdialogex.h"
-
+#include <winsock2.h>
 
 // CMainChatPage dialog
 
@@ -9,7 +9,7 @@ class CMainChatPage : public CDialogEx
 	DECLARE_DYNAMIC(CMainChatPage)
 
 public:
-	CMainChatPage(CWnd* pParent = nullptr);   // standard constructor
+	CMainChatPage(SOCKET hSocket, CWnd* pParent = nullptr);
 	virtual ~CMainChatPage();
 
 // Dialog Data
@@ -18,6 +18,7 @@ public:
 #endif
 
 protected:
+	SOCKET m_hSocket;
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
 
 	DECLARE_MESSAGE_MAP()

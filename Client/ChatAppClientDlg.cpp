@@ -271,11 +271,12 @@ void CChatAppClientDlg::OnBnClickedLogButton()
     if (response == "LOGIN_OK")
     {
         AfxMessageBox(_T("Đăng nhập thành công!"), MB_OK);
+        SOCKET hSocket = m_client.GetSocket();
         m_client.DetachSocket();
+        this->ShowWindow(SW_HIDE);
+        CMainChatPage chatDlg(hSocket, this);
+        chatDlg.DoModal();
         EndDialog(IDOK);
-        CMainChatPage loginDlg;
-        loginDlg.DoModal();
-        
     }
     else if (response == "ERR_WRONG_PASS")
     {
