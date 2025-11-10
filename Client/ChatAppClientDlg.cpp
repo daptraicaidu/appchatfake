@@ -12,6 +12,8 @@
 #include <string>
 #include <atlstr.h>
 
+#include "CMainChatPage.h"
+
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
@@ -271,6 +273,9 @@ void CChatAppClientDlg::OnBnClickedLogButton()
         AfxMessageBox(_T("Đăng nhập thành công!"), MB_OK);
         m_client.DetachSocket();
         EndDialog(IDOK);
+        CMainChatPage loginDlg;
+        loginDlg.DoModal();
+        
     }
     else if (response == "ERR_WRONG_PASS")
     {

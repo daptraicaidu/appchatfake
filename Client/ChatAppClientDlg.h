@@ -40,6 +40,7 @@ public:
 	CButton m_changeMode;
 	CStatic m_modeStatic;
 	CStatic m_errorNetwork;
+
 	// Biến quản lý kết nối
 	TcpClient m_client;
 
@@ -54,8 +55,9 @@ protected:
 	void UpdateUIMode();
 
 	// Hàm xử lý sự kiện click
-	afx_msg void OnBnClickedChangeMode(); // Click vào static text
-	afx_msg void OnBnClickedLogButton();   // Click nút Đăng nhập
-	afx_msg void OnBnClickedRegButton();   // Click nút Đăng ký
+	afx_msg void OnBnClickedChangeMode();
+	afx_msg void OnBnClickedLogButton();
+	afx_msg void OnBnClickedRegButton();
 	
+
 };
