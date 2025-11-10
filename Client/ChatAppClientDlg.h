@@ -38,6 +38,7 @@ public:
 	CButton m_regButton;
 	CButton m_logButton;
 	CButton m_changeMode;
+	CStatic m_modeStatic;
 	// Biến quản lý kết nối
 	TcpClient m_client;
 
@@ -55,4 +56,5 @@ protected:
 	afx_msg void OnBnClickedChangeMode(); // Click vào static text
 	afx_msg void OnBnClickedLogButton();   // Click nút Đăng nhập
 	afx_msg void OnBnClickedRegButton();   // Click nút Đăng ký
+	
 };

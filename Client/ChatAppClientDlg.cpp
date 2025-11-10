@@ -62,12 +62,13 @@ CChatAppClientDlg::CChatAppClientDlg(CWnd* pParent /*=nullptr*/)
 
 void CChatAppClientDlg::DoDataExchange(CDataExchange* pDX)
 {
-	CDialogEx::DoDataExchange(pDX);
-	DDX_Control(pDX, IDC_EDIT1, m_usernameInput);
-	DDX_Control(pDX, IDC_EDIT2, m_passwordInput);
-	DDX_Control(pDX, IDC_Regbtn, m_regButton);
-	DDX_Control(pDX, IDC_BUTTON1, m_logButton);
-	DDX_Control(pDX, IDC_BUTTON2, m_changeMode);
+    CDialogEx::DoDataExchange(pDX);
+    DDX_Control(pDX, IDC_EDIT1, m_usernameInput);
+    DDX_Control(pDX, IDC_EDIT2, m_passwordInput);
+    DDX_Control(pDX, IDC_Regbtn, m_regButton);
+    DDX_Control(pDX, IDC_BUTTON1, m_logButton);
+    DDX_Control(pDX, IDC_BUTTON2, m_changeMode);
+    DDX_Control(pDX, IDC_MODE, m_modeStatic);
 }
 
 BEGIN_MESSAGE_MAP(CChatAppClientDlg, CDialogEx)
@@ -207,6 +208,7 @@ void CChatAppClientDlg::UpdateUIMode()
         // Chế độ Đăng nhập
         m_logButton.ShowWindow(SW_SHOW);
         m_regButton.ShowWindow(SW_HIDE);
+        m_modeStatic.SetWindowText(_T("Đăng nhập"));
         m_changeMode.SetWindowText(_T("Chuyển sang Đăng ký"));
         SetWindowText(_T("Đăng nhập")); // Đổi tiêu đề cửa sổ
     }
@@ -215,6 +217,7 @@ void CChatAppClientDlg::UpdateUIMode()
         // Chế độ Đăng ký
         m_logButton.ShowWindow(SW_HIDE);
         m_regButton.ShowWindow(SW_SHOW);
+        m_modeStatic.SetWindowText(_T("Đăng ký"));
         m_changeMode.SetWindowText(_T("Chuyển sang Đăng nhập"));
         SetWindowText(_T("Đăng ký")); // Đổi tiêu đề cửa sổ
     }
@@ -254,7 +257,7 @@ void CChatAppClientDlg::OnBnClickedLogButton()
     // Gửi lệnh
     if (!m_client.SendRequest(command)) {
         AfxMessageBox(_T("Mất kết nối tới service."), MB_ICONERROR);
-        EndDialog(IDCANCEL); // Mất kết nối thì đóng luôn
+        EndDialog(IDCANCEL);
         return;
     }
 
