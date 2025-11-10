@@ -39,6 +39,7 @@ public:
 	CButton m_logButton;
 	CButton m_changeMode;
 	CStatic m_modeStatic;
+	CStatic m_errorNetwork;
 	// Biến quản lý kết nối
 	TcpClient m_client;
 

@@ -3,6 +3,7 @@
 
 
 Cau truc Database
+
 CREATE TABLE IF NOT EXISTS Users (
 
 &nbsp;   UserId        INTEGER PRIMARY KEY AUTOINCREMENT,

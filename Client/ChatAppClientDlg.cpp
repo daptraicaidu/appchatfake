@@ -69,6 +69,7 @@ void CChatAppClientDlg::DoDataExchange(CDataExchange* pDX)
     DDX_Control(pDX, IDC_BUTTON1, m_logButton);
     DDX_Control(pDX, IDC_BUTTON2, m_changeMode);
     DDX_Control(pDX, IDC_MODE, m_modeStatic);
+    DDX_Control(pDX, IDC_ERROR, m_errorNetwork);
 }
 
 BEGIN_MESSAGE_MAP(CChatAppClientDlg, CDialogEx)
