@@ -41,31 +41,6 @@ bool UserExists(const std::string& username)
     return (count > 0);
 }
 
-void UpdateLastOnline(int userId)
-{
-    if (!g_db) return;
-
-    sqlite3_stmt* stmt = NULL;
-    const char* sql = "UPDATE Users SET LastOnlineDate = CURRENT_TIMESTAMP WHERE UserId = ?;";
-
-    int rc = sqlite3_prepare_v2(g_db, sql, -1, &stmt, NULL);
-    if (rc != SQLITE_OK) {
-        //DEBUG_LOG(L"Lỗi prepare (UpdateLastOnline): %S", sqlite3_errmsg(g_db));
-        return;
-    }
-
-    // Bind UserId
-    sqlite3_bind_int(stmt, 1, userId);
-
-    // Execute
-    rc = sqlite3_step(stmt);
-    if (rc != SQLITE_DONE) {
-        //DEBUG_LOG(L"Lỗi step (UpdateLastOnline): %S", sqlite3_errmsg(g_db));
-    }
-
-    sqlite3_finalize(stmt);
-}
-
 
 AuthResponse ProcessRegistration(const std::string& username, const std::string& password)
 {
@@ -145,7 +120,6 @@ AuthResponse ProcessLogin(const std::string& username, const std::string& passwo
         // TODO: Phải hash `password` và so sánh với `dbPassword`
         if (password == dbPassword) {
             sqlite3_finalize(stmt);
-            UpdateLastOnline(userId);
             //DEBUG_LOG(L"Đăng nhập thành công user: %S", username.c_str());
             return AuthResponse::SUCCESS_LOGIN;
         }

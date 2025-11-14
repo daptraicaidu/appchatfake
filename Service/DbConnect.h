@@ -6,4 +6,3 @@
 extern sqlite3* g_db;
 bool ConnectDatabase();
 void DisconnectDatabase();
-//bool InitializeDatabase();

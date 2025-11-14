@@ -10,7 +10,7 @@
 #include <windows.h>
 
 #include "RegLogin.h"
-#include <string>
+//#include <string>
 #include <sstream>
 #include "DebugLog.h"
 
@@ -282,11 +282,6 @@ DWORD WINAPI ClientThreadHandler(LPVOID p) {
 
     //DEBUG_LOG(L"Client [%d] kết nối. Chờ xác thực...", (int)clientSocket);
 
-    // ======================================================================
-    // GIAI ĐOẠN 1: VÒNG LẶP XÁC THỰC
-    // Lặp lại cho đến khi đăng nhập thành công (loggedIn = true)
-    // hoặc client ngắt kết nối (recvResult <= 0)
-    // ======================================================================
     while (!loggedIn)
     {
         recvResult = recv(clientSocket, buffer, sizeof(buffer) - 1, 0);
@@ -323,9 +318,8 @@ DWORD WINAPI ClientThreadHandler(LPVOID p) {
             response = ProcessLogin(username, password);
 
             if (response == AuthResponse::SUCCESS_LOGIN) {
-                loggedIn = true; // Đăng nhập thành công!
+                loggedIn = true;
                 loggedInUsername = username; // Lưu lại tên user
-                // KHÔNG break vội, để hàm SendResponse bên dưới gửi "LOGIN_OK"
             }
         }
         else
@@ -333,28 +327,19 @@ DWORD WINAPI ClientThreadHandler(LPVOID p) {
             //DEBUG_LOG(L"Client [%d] gửi lệnh không hợp lệ: %S", (int)clientSocket, commandLine.c_str());
         }
 
-        // Gửi phản hồi về cho client (LOGIN_OK, ERR_WRONG_PASS, REG_OK, ...)
         SendResponse(clientSocket, ResponseToString(response));
 
-        // Nếu vừa đăng nhập thành công, thoát vòng lặp xác thực để vào Giai đoạn 2
         if (loggedIn) {
             break;
         }
 
-        // Nếu thất bại (sai pass, user_exists,...) vòng lặp sẽ tự động chạy lại
-        // và chờ lệnh (recv) tiếp theo từ client
     }
 
 
-    // ======================================================================
-    // GIAI ĐOẠN 2: VÒNG LẶP CHAT (Chỉ chạy nếu loggedIn == true)
-    // ======================================================================
+
     if (loggedIn)
     {
         //DEBUG_LOG(L"Client [%d] (User: %S) đã vào vòng lặp chat.", (int)clientSocket, loggedInUsername.c_str());
-
-        // TODO: Gửi cho client này thông tin về các user đang online khác
-        // TODO: Thông báo cho các client khác biết user này vừa online
 
         do {
             recvResult = recv(clientSocket, buffer, sizeof(buffer), 0);
@@ -365,10 +350,6 @@ DWORD WINAPI ClientThreadHandler(LPVOID p) {
                 std::string message(buffer);
                 //DEBUG_LOG(L"Client [%d] (User: %S) gửi: %S", (int)clientSocket, loggedInUsername.c_str(), message.c_str());
 
-                // TODO: Xử lý tin nhắn (ví dụ: "MSG <user_nhan> <noi_dung>")
-                // Phân tích `message`
-                // Tìm socket của <user_nhan>
-                // Gửi tin nhắn đến socket đó
             }
             else
             {
@@ -376,19 +357,16 @@ DWORD WINAPI ClientThreadHandler(LPVOID p) {
                 break;
             }
 
-        } while (true); // Vòng lặp chat này sẽ chạy vô tận cho đến khi client ngắt kết nối
+        } while (true);
 
         //DEBUG_LOG(L"Client [%d] (User: %S) đã ngắt kết nối (sau khi đăng nhập).", (int)clientSocket, loggedInUsername.c_str());
-        // TODO: Thông báo cho các client khác biết user này đã offline
     }
     else
     {
         //DEBUG_LOG(L"Client [%d] xác thực thất bại và đã ngắt kết nối, đóng luồng.", (int)clientSocket);
     }
 
-    // ======================================================================
-    // GIAI ĐOẠN 3: DỌN DẸP
-    // ======================================================================
+
     shutdown(clientSocket, SD_SEND);
     closesocket(clientSocket);
 

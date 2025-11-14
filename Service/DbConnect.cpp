@@ -3,8 +3,7 @@
 #include "DbConnect.h"
 #include <windows.h> 
 #include "DebugLog.h"
-#include <tchar.h>   
-
+#include <debugapi.h>
 
 sqlite3* g_db = NULL;
 
@@ -25,7 +24,7 @@ bool ConnectDatabase()
 
     if (rc != SQLITE_OK)
     {
-        //DEBUG_LOG(L"Không thể mở DB: %S", sqlite3_errmsg(g_db));
+        DEBUG_LOG(L"Cannot open DB: %S", sqlite3_errmsg(g_db));
         if (g_db) sqlite3_close(g_db);
         g_db = NULL;
         return false;
@@ -39,11 +38,11 @@ bool ConnectDatabase()
     char* errMsg = NULL;
     rc = sqlite3_exec(g_db, pragmas, NULL, NULL, &errMsg);
     if (rc != SQLITE_OK) {
-        //DEBUG_LOG(L"Lỗi cài đặt PRAGMA: %S", errMsg);
+        DEBUG_LOG(L"Cannot setup PRAGMA: %S", errMsg);
         sqlite3_free(errMsg);
     }
 
-    //DEBUG_LOG(L"Ket noi SQLite DB thành công!");
+    DEBUG_LOG(L"SQLite DB connected");
 
     return true;
 }
@@ -55,6 +54,6 @@ void DisconnectDatabase()
     {
         sqlite3_close(g_db);
         g_db = NULL;
-        //DEBUG_LOG(L"Đã ngat ket noi SQLite DB.");
+        DEBUG_LOG(L"Đã ngat ket noi SQLite DB.");
     }
 }
