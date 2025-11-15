@@ -9,9 +9,6 @@
 #include "afxdialogex.h"
 #include "resource.h"
 
-#include <string>
-#include <atlstr.h>
-
 #include "CMainChatPage.h"
 
 #ifdef _DEBUG
@@ -203,7 +200,7 @@ void CChatAppClientDlg::OnEnChangeEdit2()
 }
 
 
-// === HÀM TRỢ GIÚP CẬP NHẬT UI ===
+// Update UI
 void CChatAppClientDlg::UpdateUIMode()
 {
     if (m_isLoginMode)
@@ -226,20 +223,19 @@ void CChatAppClientDlg::UpdateUIMode()
     }
 }
 
-// === HÀM XỬ LÝ SỰ KIỆN CLICK ===
+// Button hanlder
 
 // Click vào dòng chữ "Chuyển chế độ"
 void CChatAppClientDlg::OnBnClickedChangeMode()
 {
-    m_isLoginMode = !m_isLoginMode; // Lật trạng thái
-    UpdateUIMode(); // Cập nhật lại UI
+    m_isLoginMode = !m_isLoginMode; 
+    UpdateUIMode(); 
 }
 
 // Click nút "Đăng nhập"
-// Click nút "Đăng nhập"
 void CChatAppClientDlg::OnBnClickedLogButton()
 {
-    // BẮT BUỘC PHẢI CÓ DÒNG NÀY ĐẦU TIÊN
+
     USES_CONVERSION;
 
     CString cstrUser, cstrPass;
@@ -251,8 +247,8 @@ void CChatAppClientDlg::OnBnClickedLogButton()
         return;
     }
 
-    std::string user = std::string(CT2A(cstrUser)); // hoặc CW2A(cstrUser, CP_UTF8)
-    std::string pass = std::string(CT2A(cstrPass)); // hoặc CW2A(cstrPass, CP_UTF8)
+    std::string user = std::string(CT2A(cstrUser));
+    std::string pass = std::string(CT2A(cstrPass));
 
     std::string command = std::string("LOGIN ") + user + " " + pass + "\n";
 
@@ -301,7 +297,7 @@ void CChatAppClientDlg::OnBnClickedLogButton()
 // Click nút "Đăng ký"
 void CChatAppClientDlg::OnBnClickedRegButton()
 {
-    // BẮT BUỘC PHẢI CÓ DÒNG NÀY ĐẦU TIÊN
+
     USES_CONVERSION;
 
     CString cstrUser, cstrPass;
@@ -313,8 +309,8 @@ void CChatAppClientDlg::OnBnClickedRegButton()
         return;
     }
 
-    std::string user = std::string(CT2A(cstrUser)); // hoặc CW2A(cstrUser, CP_UTF8)
-    std::string pass = std::string(CT2A(cstrPass)); // hoặc CW2A(cstrPass, CP_UTF8)
+    std::string user = std::string(CT2A(cstrUser));
+    std::string pass = std::string(CT2A(cstrPass));
 
     std::string command = std::string("REG ") + user + " " + pass + "\n";
 
@@ -350,4 +346,18 @@ void CChatAppClientDlg::OnBnClickedRegButton()
         CString errorMsg(response.c_str());
         AfxMessageBox(_T("Lỗi không xác định: ") + errorMsg, MB_ICONERROR);
     }
+}
+
+void CChatAppClientDlg::OnOK()
+{
+
+    if (m_isLoginMode)
+    {
+        OnBnClickedLogButton();
+    }
+    else
+    {
+        OnBnClickedRegButton();
+    }
+
 }

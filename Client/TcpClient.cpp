@@ -11,8 +11,7 @@ TcpClient::TcpClient()
     WSADATA wsaData;
     int result = WSAStartup(MAKEWORD(2, 2), &wsaData);
     if (result != 0) {
-        // Không thể khởi tạo Winsock, đây là lỗi nghiêm trọng
-        // Bạn có thể ném ngoại lệ hoặc xử lý cách khác
+
         throw std::runtime_error("WSAStartup failed!");
     }
     m_wsaInitialized = true;
@@ -103,8 +102,7 @@ std::string TcpClient::ReceiveResponse()
 
 void TcpClient::DetachSocket()
 {
-    // Khi gọi hàm này, đối tượng TcpClient sẽ "bỏ" socket lại
-    // để nó không bị đóng khi TcpClient bị hủy (ví dụ: khi dialog login tắt)
+
     m_socket = INVALID_SOCKET;
     m_isConnected = false;
 }

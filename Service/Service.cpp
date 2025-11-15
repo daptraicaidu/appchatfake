@@ -5,14 +5,15 @@
 #include <ws2tcpip.h>
 #include <vector>
 #include <mutex>
-#include "DbConnect.h"
+
 #pragma comment(lib, "Ws2_32.lib")
 #include <windows.h>
-
-#include "RegLogin.h"
-//#include <string>
-#include <sstream>
 #include "DebugLog.h"
+#include "RegLogin.h"
+#include "DbConnect.h"
+
+#include <sstream>
+
 
 #define SERVICE_NAME L"ChatAppService" // Service name
 
@@ -68,7 +69,7 @@ bool SendResponse(SOCKET clientSocket, const std::string& response)
     std::string msg = response + "\n";
     int sendResult = send(clientSocket, msg.c_str(), (int)msg.length(), 0);
     if (sendResult == SOCKET_ERROR) {
-        //DEBUG_LOG(L"Lỗi send: %d", WSAGetLastError());
+        DEBUG_LOG(L"Lỗi send: %d", WSAGetLastError());
         return false;
     }
     return true;
@@ -97,14 +98,14 @@ DWORD WINAPI ServiceWorkerThread(LPVOID lpParam)
     // Khởi tạo Winsock, tạo socket, bind và listen
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) { 
-        //DEBUG_LOG(L"WSAStartup thất bại ", WSAGetLastError());
+        DEBUG_LOG(L"WSAStartup thất bại ", WSAGetLastError());
         return 1; 
     }
 
     //connect db
     if (!ConnectDatabase())
     {
-        //DEBUG_LOG(L"Không thể kết nối Database, service dừng.");
+        DEBUG_LOG(L"Không thể kết nối Database, service dừng.");
         WSACleanup();
         return 1;
     }
@@ -272,15 +273,15 @@ VOID WINAPI ServiceCtrlHandler(DWORD CtrlCode)
 }
 
 
-// Hàm chờ client và xử lý xác thực/chat (ĐÃ CẬP NHẬT)
+// Hàm chờ client và xử lý xác thực/chat
 DWORD WINAPI ClientThreadHandler(LPVOID p) {
     SOCKET clientSocket = (SOCKET)(uintptr_t)p;
     char buffer[1024];
     int recvResult;
     bool loggedIn = false;
-    std::string loggedInUsername = ""; // Lưu lại username khi đăng nhập thành công
+    std::string loggedInUsername = "";
 
-    //DEBUG_LOG(L"Client [%d] kết nối. Chờ xác thực...", (int)clientSocket);
+    DEBUG_LOG(L"Client [%d] kết nối. Chờ xác thực...", (int)clientSocket);
 
     while (!loggedIn)
     {
@@ -288,8 +289,8 @@ DWORD WINAPI ClientThreadHandler(LPVOID p) {
 
         if (recvResult <= 0) {
             // Client đã ngắt kết nối trước khi đăng nhập thành công
-            //DEBUG_LOG(L"Client [%d] ngắt kết nối trong khi xác thực.", (int)clientSocket);
-            break; // Thoát khỏi vòng lặp while(!loggedIn)
+            DEBUG_LOG(L"Client [%d] ngắt kết nối trong khi xác thực.", (int)clientSocket);
+            break;
         }
 
         buffer[recvResult] = '\0';
@@ -309,22 +310,22 @@ DWORD WINAPI ClientThreadHandler(LPVOID p) {
 
         if (command == "REG" && !username.empty() && !password.empty())
         {
-            //DEBUG_LOG(L"Client [%d] yêu cầu REG user: %S", (int)clientSocket, username.c_str());
+            DEBUG_LOG(L"Client [%d] yêu cầu REG user: %S", (int)clientSocket, username.c_str());
             response = ProcessRegistration(username, password);
         }
         else if (command == "LOGIN" && !username.empty() && !password.empty())
         {
-            //DEBUG_LOG(L"Client [%d] yêu cầu LOGIN user: %S", (int)clientSocket, username.c_str());
+            DEBUG_LOG(L"Client [%d] yêu cầu LOGIN user: %S", (int)clientSocket, username.c_str());
             response = ProcessLogin(username, password);
 
             if (response == AuthResponse::SUCCESS_LOGIN) {
                 loggedIn = true;
-                loggedInUsername = username; // Lưu lại tên user
+                loggedInUsername = username;
             }
         }
         else
         {
-            //DEBUG_LOG(L"Client [%d] gửi lệnh không hợp lệ: %S", (int)clientSocket, commandLine.c_str());
+            DEBUG_LOG(L"Client [%d] gửi lệnh không hợp lệ: %S", (int)clientSocket, commandLine.c_str());
         }
 
         SendResponse(clientSocket, ResponseToString(response));
@@ -339,7 +340,7 @@ DWORD WINAPI ClientThreadHandler(LPVOID p) {
 
     if (loggedIn)
     {
-        //DEBUG_LOG(L"Client [%d] (User: %S) đã vào vòng lặp chat.", (int)clientSocket, loggedInUsername.c_str());
+        DEBUG_LOG(L"Client [%d] (User: %S) Login success.", (int)clientSocket, loggedInUsername.c_str());
 
         do {
             recvResult = recv(clientSocket, buffer, sizeof(buffer), 0);
@@ -348,29 +349,28 @@ DWORD WINAPI ClientThreadHandler(LPVOID p) {
                 // Client gửi tin nhắn
                 buffer[recvResult] = '\0';
                 std::string message(buffer);
-                //DEBUG_LOG(L"Client [%d] (User: %S) gửi: %S", (int)clientSocket, loggedInUsername.c_str(), message.c_str());
+                DEBUG_LOG(L"Client [%d] (User: %S) gửi: %S", (int)clientSocket, loggedInUsername.c_str(), message.c_str());
 
             }
             else
             {
-                // Client ngắt kết nối (recvResult <= 0)
+                // Client ngắt kết nối
                 break;
             }
 
         } while (true);
 
-        //DEBUG_LOG(L"Client [%d] (User: %S) đã ngắt kết nối (sau khi đăng nhập).", (int)clientSocket, loggedInUsername.c_str());
+        DEBUG_LOG(L"Client [%d] (User: %S) đã ngắt kết nối (sau khi đăng nhập).", (int)clientSocket, loggedInUsername.c_str());
     }
     else
     {
-        //DEBUG_LOG(L"Client [%d] xác thực thất bại và đã ngắt kết nối, đóng luồng.", (int)clientSocket);
+        DEBUG_LOG(L"Client [%d] xác thực thất bại và đã ngắt kết nối, đóng luồng.", (int)clientSocket);
     }
 
-
+    // CLEAN
     shutdown(clientSocket, SD_SEND);
     closesocket(clientSocket);
 
-    // Xóa khỏi danh sách
     {
         std::lock_guard<std::mutex> lock(g_socketMutex);
         for (auto it = g_clientSockets.begin(); it != g_clientSockets.end(); ++it) {
@@ -381,7 +381,7 @@ DWORD WINAPI ClientThreadHandler(LPVOID p) {
         }
     }
 
-    //DEBUG_LOG(L"Đã dọn dẹp và kết thúc luồng cho Client [%d]", (int)clientSocket);
+    DEBUG_LOG(L"Đã dọn dẹp và kết thúc luồng cho Client [%d]", (int)clientSocket);
     return 0;
 }
 

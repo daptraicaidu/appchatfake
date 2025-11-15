@@ -3,7 +3,6 @@
 #include "DbConnect.h"
 #include <windows.h> 
 #include "DebugLog.h"
-#include <debugapi.h>
 
 sqlite3* g_db = NULL;
 
@@ -54,6 +53,6 @@ void DisconnectDatabase()
     {
         sqlite3_close(g_db);
         g_db = NULL;
-        DEBUG_LOG(L"Đã ngat ket noi SQLite DB.");
+        DEBUG_LOG(L"SQLite DB disconnected");
     }
 }

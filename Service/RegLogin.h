@@ -3,7 +3,6 @@
 #pragma once
 #include <string>
 
-// Các mã trả về cho client
 enum class AuthResponse {
     SUCCESS_LOGIN,
     SUCCESS_REGISTER,

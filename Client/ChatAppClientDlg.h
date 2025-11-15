@@ -19,7 +19,8 @@ public:
 
 	protected:
 	virtual void DoDataExchange(CDataExchange* pDX);	// DDX/DDV support
-
+	virtual void OnOK();
+	//virtual void OnCancel();
 
 // Implementation
 protected:
