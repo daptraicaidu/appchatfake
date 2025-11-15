@@ -266,7 +266,7 @@ void CChatAppClientDlg::OnBnClickedLogButton()
     // Xử lý phản hồi
     if (response == "LOGIN_OK")
     {
-        AfxMessageBox(_T("Đăng nhập thành công!"), MB_OK);
+        //AfxMessageBox(_T("Đăng nhập thành công!"), MB_OK);
         SOCKET hSocket = m_client.GetSocket();
         m_client.DetachSocket();
         this->ShowWindow(SW_HIDE);

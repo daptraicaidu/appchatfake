@@ -29,7 +29,11 @@ CMainChatPage::~CMainChatPage()
 
 void CMainChatPage::DoDataExchange(CDataExchange* pDX)
 {
-	CDialogEx::DoDataExchange(pDX);
+    CDialogEx::DoDataExchange(pDX);
+    DDX_Control(pDX, IDC_LIST1, m_listUsers);
+    DDX_Control(pDX, IDC_RICHEDIT21, m_chatHistory);
+    DDX_Control(pDX, IDC_EDIT1, m_editMessage);
+    DDX_Control(pDX, IDC_BUTTON1, m_btnSend);
 }
 
 

@@ -22,4 +22,9 @@ protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
 
 	DECLARE_MESSAGE_MAP()
+public:
+	CListCtrl m_listUsers;
+	CRichEditCtrl m_chatHistory;
+	CEdit m_editMessage;
+	CButton m_btnSend;
 };
