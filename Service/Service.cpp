@@ -5,12 +5,14 @@
 #include <ws2tcpip.h>
 #include <vector>
 #include <mutex>
+#include <map>
 
 #pragma comment(lib, "Ws2_32.lib")
 #include <windows.h>
 #include "DebugLog.h"
 #include "RegLogin.h"
 #include "DbConnect.h"
+#include "ChatHandler.h"
 
 #include <sstream>
 
@@ -33,6 +35,9 @@ DWORD WINAPI ClientThreadHandler(LPVOID p);
 std::vector<SOCKET> g_clientSockets; // Danh sách socket của client
 std::mutex g_socketMutex;
 
+// Map để theo dõi trạng thái online
+std::map<std::string, SOCKET> g_onlineUsers;
+std::mutex g_onlineUsersMutex;
 
 // Khởi tạo WMain
 int wmain(int argc, wchar_t* argv[]);
@@ -321,6 +326,14 @@ DWORD WINAPI ClientThreadHandler(LPVOID p) {
             if (response == AuthResponse::SUCCESS_LOGIN) {
                 loggedIn = true;
                 loggedInUsername = username;
+
+                // Thêm user vào map online
+                {
+                    std::lock_guard<std::mutex> lock(g_onlineUsersMutex);
+                    g_onlineUsers[loggedInUsername] = clientSocket;
+                }
+                // Gửi các tin nhắn offline (nếu có)
+                SendOfflineMessages(clientSocket, loggedInUsername);
             }
         }
         else
@@ -343,14 +356,23 @@ DWORD WINAPI ClientThreadHandler(LPVOID p) {
         DEBUG_LOG(L"Client [%d] (User: %S) Login success.", (int)clientSocket, loggedInUsername.c_str());
 
         do {
-            recvResult = recv(clientSocket, buffer, sizeof(buffer), 0);
+            recvResult = recv(clientSocket, buffer, sizeof(buffer) - 1, 0); // -1 để có chỗ cho '\0'
             if (recvResult > 0)
             {
                 // Client gửi tin nhắn
                 buffer[recvResult] = '\0';
-                std::string message(buffer);
-                DEBUG_LOG(L"Client [%d] (User: %S) gửi: %S", (int)clientSocket, loggedInUsername.c_str(), message.c_str());
+                std::string messageLine(buffer);
 
+                // Xóa các ký tự \r \n ở cuối (quan trọng)
+                while (!messageLine.empty() && (messageLine.back() == '\r' || messageLine.back() == '\n')) {
+                    messageLine.pop_back();
+                }
+
+                // Nếu messageLine không rỗng (tránh trường hợp chỉ gửi \n)
+                if (!messageLine.empty()) {
+                    // Gọi hàm xử lý tin nhắn mới của chúng ta
+                    ProcessClientMessage(clientSocket, loggedInUsername, messageLine);
+                }
             }
             else
             {
@@ -365,6 +387,13 @@ DWORD WINAPI ClientThreadHandler(LPVOID p) {
     else
     {
         DEBUG_LOG(L"Client [%d] xác thực thất bại và đã ngắt kết nối, đóng luồng.", (int)clientSocket);
+    }
+
+    // Dọn dẹp user khỏi map online
+    if (loggedIn)
+    {
+        std::lock_guard<std::mutex> lock(g_onlineUsersMutex);
+        g_onlineUsers.erase(loggedInUsername);
     }
 
     // CLEAN
