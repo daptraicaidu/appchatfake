@@ -43,10 +43,7 @@ int GetUserId(const std::string& username)
     return userId;
 }
 
-/**
- * @brief Lưu tin nhắn vào DB và trả về MessageId
- * @return MessageId nếu thành công, -1 nếu thất bại.
- */
+// Save Message to DB
 sqlite3_int64 SaveMessageToDb(int senderId, int receiverId, const std::string& content)
 {
     if (!g_db) return -1;
@@ -60,8 +57,8 @@ sqlite3_int64 SaveMessageToDb(int senderId, int receiverId, const std::string& c
         return -1;
     }
 
-    sqlite3_bind_text(stmt, 1, std::to_string(senderId).c_str(), -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 2, std::to_string(receiverId).c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 1, senderId);
+    sqlite3_bind_int(stmt, 2, receiverId);
     sqlite3_bind_text(stmt, 3, content.c_str(), -1, SQLITE_STATIC);
 
     rc = sqlite3_step(stmt);
@@ -78,39 +75,17 @@ sqlite3_int64 SaveMessageToDb(int senderId, int receiverId, const std::string& c
     return lastId;
 }
 
-/**
- * @brief Cập nhật trạng thái IsDelivered cho tin nhắn
- */
-void MarkMessageAsDelivered(sqlite3_int64 messageId)
-{
-    if (!g_db) return;
-
-    sqlite3_stmt* stmt = NULL;
-    // Cập nhật cả thời gian
-    const char* sql = "UPDATE Messages SET IsDelivered = 1, DeliveredDate = CURRENT_TIMESTAMP WHERE MessageId = ?;";
-
-    int rc = sqlite3_prepare_v2(g_db, sql, -1, &stmt, NULL);
-    if (rc != SQLITE_OK) {
-        DEBUG_LOG(L"Lỗi prepare (MarkDelivered): %S", sqlite3_errmsg(g_db));
-        return;
-    }
-
-    sqlite3_bind_int64(stmt, 1, messageId);
-
-    sqlite3_step(stmt); // Thực thi, không cần check kết quả
-    sqlite3_finalize(stmt);
-}
 
 
-/**
- * @brief Xử lý một dòng lệnh/tin nhắn từ client.
- */
+// Xử lý lệnh từ client.
+
 void ProcessClientMessage(SOCKET senderSocket, const std::string& senderUsername, const std::string& messageLine)
 {
     std::stringstream ss(messageLine);
     std::string command;
     ss >> command;
 
+    // Lệnh SEND
     if (command == "SEND")
     {
         // --- 1. Phân tích lệnh ---
@@ -180,7 +155,6 @@ void ProcessClientMessage(SOCKET senderSocket, const std::string& senderUsername
             if (SendResponse(recipientSocket, forwardMessage))
             {
                 // Gửi thành công, cập nhật DB
-                MarkMessageAsDelivered(messageId);
                 DEBUG_LOG(L"Đã chuyển tiếp tin nhắn %lld đến %S (Online)", messageId, recipientUsername.c_str());
             }
             else
@@ -197,7 +171,7 @@ void ProcessClientMessage(SOCKET senderSocket, const std::string& senderUsername
     }
     else if (command == "GET_USERS")
     {
-        HandleGetUsersList(senderSocket);
+        HandleGetUsersList(senderSocket, senderUsername);
     }
     else if (command == "GET_HISTORY")
     {
@@ -205,7 +179,7 @@ void ProcessClientMessage(SOCKET senderSocket, const std::string& senderUsername
         ss >> otherUsername;
         HandleGetHistory(senderSocket, senderUsername, otherUsername);
     }
-    // TODO: Thêm các lệnh khác (ví dụ: GET_USERS, GET_HISTORY...)
+    // TODO: Thêm các lệnh khác
     else
     {
         DEBUG_LOG(L"Lệnh không xác định '%S' từ %S", command.c_str(), senderUsername.c_str());
@@ -214,10 +188,8 @@ void ProcessClientMessage(SOCKET senderSocket, const std::string& senderUsername
 }
 
 
-/**
- * @brief Xử lý yêu cầu lấy danh sách tất cả user.
- */
-void HandleGetUsersList(SOCKET senderSocket)
+// GET userlist
+void HandleGetUsersList(SOCKET senderSocket, const std::string& currentUsername)
 {
     if (!g_db) {
         SendResponse(senderSocket, "ERR_DB_ERROR");
@@ -226,7 +198,10 @@ void HandleGetUsersList(SOCKET senderSocket)
 
     sqlite3_stmt* stmt = NULL;
     // Lấy tất cả Username, sắp xếp theo tên
-    const char* sql = "SELECT Username FROM Users ORDER BY Username;";
+    const char* sql =
+        "SELECT Username FROM Users "
+        "WHERE Username <> ? "
+        "ORDER BY Username;";
 
     int rc = sqlite3_prepare_v2(g_db, sql, -1, &stmt, NULL);
     if (rc != SQLITE_OK) {
@@ -234,6 +209,15 @@ void HandleGetUsersList(SOCKET senderSocket)
         SendResponse(senderSocket, "ERR_DB_ERROR");
         return;
     }
+
+    // Bind username hiện tại để loại ra
+    sqlite3_bind_text(
+        stmt,
+        1,
+        currentUsername.c_str(),
+        -1,
+        SQLITE_TRANSIENT
+    );
 
     // Định dạng phản hồi: USERS_LIST <user1> <user2> <user3> ...
     // Ví dụ: USERS_LIST an admin testuser
@@ -255,9 +239,7 @@ void HandleGetUsersList(SOCKET senderSocket)
 
 
 
-/**
- * @brief Xử lý yêu cầu lấy lịch sử chat với một user khác.
- */
+// Lấy lịch sự chat
 void HandleGetHistory(SOCKET senderSocket, const std::string& senderUsername, const std::string& otherUsername)
 {
     if (otherUsername.empty()) {
@@ -331,67 +313,4 @@ void HandleGetHistory(SOCKET senderSocket, const std::string& senderUsername, co
     // Định dạng: HISTORY_END
     SendResponse(senderSocket, "HISTORY_END");
     DEBUG_LOG(L"Hoàn tất gửi lịch sử chat cho Client [%d]", (int)senderSocket);
-}
-
-
-void SendOfflineMessages(SOCKET clientSocket, const std::string& username)
-{
-    int receiverId = GetUserId(username);
-    if (receiverId == -1) return;
-
-    if (!g_db) return;
-
-    sqlite3_stmt* stmt = NULL;
-    // Lấy tất cả tin nhắn gửi cho user này (ReceiverId)
-    // mà chưa được gửi (IsDelivered = 0)
-    // Cùng với tên người gửi (JOIN Users)
-    const char* sql = "SELECT M.MessageId, U.Username, M.Content "
-        "FROM Messages M JOIN Users U ON M.SenderId = U.UserId "
-        "WHERE M.ReceiverId = ? AND M.IsDelivered = 0 "
-        "ORDER BY M.SentDate ASC;";
-
-    int rc = sqlite3_prepare_v2(g_db, sql, -1, &stmt, NULL);
-    if (rc != SQLITE_OK) {
-        DEBUG_LOG(L"Lỗi prepare (SendOffline): %S", sqlite3_errmsg(g_db));
-        return;
-    }
-
-    sqlite3_bind_int(stmt, 1, receiverId);
-
-    DEBUG_LOG(L"Bắt đầu kiểm tra và gửi tin nhắn offline cho %S...", username.c_str());
-
-    std::vector<sqlite3_int64> deliveredMessageIds;
-
-    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW)
-    {
-        sqlite3_int64 messageId = sqlite3_column_int64(stmt, 0);
-        const char* senderUsername = (const char*)sqlite3_column_text(stmt, 1);
-        const char* content = (const char*)sqlite3_column_text(stmt, 2);
-
-        // Gửi tin nhắn theo định dạng RECV
-        std::string forwardMessage = "RECV " + std::string(senderUsername) + " " + std::string(content);
-
-        // Gửi và kiểm tra
-        if (SendResponse(clientSocket, forwardMessage))
-        {
-            // Nếu gửi thành công, thêm ID vào danh sách để cập nhật
-            deliveredMessageIds.push_back(messageId);
-        }
-        else
-        {
-            // Lỗi (có thể client ngắt kết nối ngay sau khi login), dừng lại
-            DEBUG_LOG(L"Lỗi gửi tin offline (ID: %lld) cho %S. Dừng lại.", messageId, username.c_str());
-            break;
-        }
-    }
-    sqlite3_finalize(stmt);
-
-    // Cập nhật DB (rất quan trọng)
-    // Đánh dấu tất cả các tin đã gửi thành công là IsDelivered = 1
-    for (sqlite3_int64 msgId : deliveredMessageIds)
-    {
-        MarkMessageAsDelivered(msgId);
-    }
-
-    DEBUG_LOG(L"Đã gửi %d tin nhắn offline cho %S.", (int)deliveredMessageIds.size(), username.c_str());
 }

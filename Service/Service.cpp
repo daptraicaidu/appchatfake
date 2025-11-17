@@ -332,8 +332,7 @@ DWORD WINAPI ClientThreadHandler(LPVOID p) {
                     std::lock_guard<std::mutex> lock(g_onlineUsersMutex);
                     g_onlineUsers[loggedInUsername] = clientSocket;
                 }
-                // Gửi các tin nhắn offline (nếu có)
-                SendOfflineMessages(clientSocket, loggedInUsername);
+                
             }
         }
         else
@@ -370,7 +369,7 @@ DWORD WINAPI ClientThreadHandler(LPVOID p) {
 
                 // Nếu messageLine không rỗng (tránh trường hợp chỉ gửi \n)
                 if (!messageLine.empty()) {
-                    // Gọi hàm xử lý tin nhắn mới của chúng ta
+                    // Gọi hàm xử lý tin nhắn
                     ProcessClientMessage(clientSocket, loggedInUsername, messageLine);
                 }
             }

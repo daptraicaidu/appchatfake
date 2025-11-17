@@ -10,8 +10,6 @@ int GetUserId(const std::string& username);
 
 void ProcessClientMessage(SOCKET senderSocket, const std::string& senderUsername, const std::string& messageLine);
 
-void SendOfflineMessages(SOCKET clientSocket, const std::string& username);
-
-void HandleGetUsersList(SOCKET senderSocket);
+void HandleGetUsersList(SOCKET senderSocket, const std::string& currentUsername);
 
 void HandleGetHistory(SOCKET senderSocket, const std::string& senderUsername, const std::string& otherUsername);
