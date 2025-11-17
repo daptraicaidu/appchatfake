@@ -7,39 +7,40 @@ Cấu trúc Database
 
 CREATE TABLE IF NOT EXISTS Users (
 
-&nbsp;   UserId        INTEGER PRIMARY KEY AUTOINCREMENT,
+    UserId        INTEGER PRIMARY KEY AUTOINCREMENT,
 
-&nbsp;   Username      TEXT UNIQUE NOT NULL,
+    Username      TEXT UNIQUE NOT NULL,
 
-&nbsp;   PasswordHash  TEXT NOT NULL,
+    PasswordHash  TEXT NOT NULL,
 
-&nbsp;   CreateDate    DATETIME NOT NULL DEFAULT (CURRENT\_TIMESTAMP),
+    CreateDate    DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
 
 );
-
-
 
 CREATE TABLE IF NOT EXISTS Messages (
 
-&nbsp;   MessageId     INTEGER PRIMARY KEY AUTOINCREMENT,
+    MessageId     INTEGER PRIMARY KEY AUTOINCREMENT,
 
-&nbsp;   SenderId      INTEGER NOT NULL,
+    SenderId      INTEGER NOT NULL,
 
-&nbsp;   ReceiverId    INTEGER NOT NULL,
+    ReceiverId    INTEGER NOT NULL,
 
-&nbsp;   Content       TEXT NOT NULL,
+    Content       TEXT NOT NULL,
 
-&nbsp;   SentDate      DATETIME NOT NULL DEFAULT (CURRENT\_TIMESTAMP),
+    SentDate      DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
 
-&nbsp;   IsDelivered   INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (SenderId)  REFERENCES Users(UserId),
 
-&nbsp;   DeliveredDate DATETIME,
-
-&nbsp;   FOREIGN KEY (SenderId)  REFERENCES Users(UserId),
-
-&nbsp;   FOREIGN KEY (ReceiverId) REFERENCES Users(UserId)
+    FOREIGN KEY (ReceiverId) REFERENCES Users(UserId)
 
 );
 
-CREATE INDEX IF NOT EXISTS IX\_Messages\_Recv\_Deliv ON Messages(ReceiverId, IsDelivered);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username
+
+ON Users(Username);
+
+CREATE INDEX IF NOT EXISTS idx_messages_pair
+
+ON Messages(SenderId, ReceiverId, SentDate);
+
 
