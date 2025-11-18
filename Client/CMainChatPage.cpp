@@ -51,13 +51,19 @@ BEGIN_MESSAGE_MAP(CMainChatPage, CDialogEx)
 	ON_MESSAGE(WM_USER_CONNECTION_LOST, &CMainChatPage::OnConnectionLost)
 END_MESSAGE_MAP()
 
-
+#ifndef EM_SETTYPOGRAPHYOPTIONS
+#define EM_SETTYPOGRAPHYOPTIONS (WM_USER + 202)
+#endif
+#ifndef TO_ADVANCEDTYPOGRAPHY
+#define TO_ADVANCEDTYPOGRAPHY 1
+#endif
 // CMainChatPage message handlers
 
 BOOL CMainChatPage::OnInitDialog()
 {
 	CDialogEx::OnInitDialog();
 
+	SetWindowText(_T("Main Chat"));
 	// --- 1. Cấu hình List Control ---
 	// Thiết lập kiểu xem "Report" và thêm cột "Username"
 	m_listUsers.SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
@@ -88,6 +94,21 @@ BOOL CMainChatPage::OnInitDialog()
 	// --- 4. Gửi yêu cầu đầu tiên: Lấy danh sách Users ---
 	// Luồng nhận sẽ xử lý phản hồi "USERS_LIST ..."
 	SendSocketCommand(_T("GET_USERS"));
+
+
+
+	// Thiết lập font mặc định cho khung chat
+	m_chatHistory.SendMessage(EM_SETTYPOGRAPHYOPTIONS, TO_ADVANCEDTYPOGRAPHY, TO_ADVANCEDTYPOGRAPHY);
+	CHARFORMAT2 cf;
+	memset(&cf, 0, sizeof(CHARFORMAT2));
+	cf.cbSize = sizeof(CHARFORMAT2);
+	cf.dwMask = CFM_FACE | CFM_SIZE | CFM_CHARSET;
+
+	_tcscpy_s(cf.szFaceName, _T("Segoe UI Emoji"));
+	cf.yHeight = 220;
+	cf.bCharSet = DEFAULT_CHARSET;
+
+	m_chatHistory.SetDefaultCharFormat((CHARFORMAT&)cf);
 
 	return TRUE;  // return TRUE unless you set the focus to a control
 }
@@ -139,9 +160,12 @@ bool CMainChatPage::SendSocketCommand(const CString& sCommand)
 {
 	if (m_hSocket == INVALID_SOCKET) return false;
 
-	USES_CONVERSION;
-	// Gửi dạng UTF-8 (CT2A)
-	std::string cmd = std::string(CT2A(sCommand)) + "\n";
+	std::wstring wCmd(sCommand); // Chắc chắn là wide string
+
+	// Chuyển đổi sang UTF-8 thủ công để đảm bảo nhất hoặc dùng CT2A(sCommand, CP_UTF8)
+	// Cách dùng CT2A với CP_UTF8:
+	CW2A utf8Cmd(sCommand, CP_UTF8);
+	std::string cmd = std::string(utf8Cmd) + "\n";
 
 	int sendResult = send(m_hSocket, cmd.c_str(), (int)cmd.length(), 0);
 
@@ -160,43 +184,44 @@ bool CMainChatPage::SendSocketCommand(const CString& sCommand)
  /**
   * @brief Thêm text vào RichEdit với màu sắc. (ĐÃ SỬA LỖI)
   */
+// File: Client/CMainChatPage.cpp
+
 void CMainChatPage::AppendTextToHistory(const CString& sText, COLORREF color)
 {
-	// --- Sửa lỗi GetSelectionCharPosition và ScrollToCaret ---
-
 	long nStart, nEnd;
 
-	// 1. Di chuyển con trỏ (selection) xuống cuối cùng
+	// 1. Di chuyển con trỏ xuống cuối
 	m_chatHistory.SetSel(-1, -1);
-
-	// 2. Lấy vị trí bắt đầu (là vị trí con trỏ hiện tại)
-	// Hàm GetSel thay thế cho GetSelectionCharPosition
 	m_chatHistory.GetSel(nStart, nEnd);
-	// Sau SetSel(-1,-1), nStart và nEnd sẽ bằng nhau và ở cuối.
 
-	// 3. Thêm text và ký tự xuống dòng
+	// 2. Thêm text và xuống dòng
 	m_chatHistory.ReplaceSel(sText + _T("\r\n"));
 
-	// 4. Chuẩn bị định dạng màu
-	CHARFORMAT cf;
-	cf.cbSize = sizeof(CHARFORMAT);
-	// Phải có cả CFM_COLOR và CFM_EFFECTS
-	cf.dwMask = CFM_COLOR | CFM_EFFECTS;
-	cf.crTextColor = color;
-	cf.dwEffects = 0; // Tắt các hiệu ứng (bold, italic...)
+	// 3. Chuẩn bị định dạng
+	CHARFORMAT2 cf; // Dùng CHARFORMAT2 để hỗ trợ tốt hơn nếu có
+	memset(&cf, 0, sizeof(CHARFORMAT2));
+	cf.cbSize = sizeof(CHARFORMAT2);
 
-	// 5. Chọn (select) lại đoạn text vừa thêm
-	// Vị trí kết thúc mới = vị trí bắt đầu + chiều dài text (không tính \r\n)
+	// --- SỬA ĐỔI QUAN TRỌNG ---
+	// Thêm cờ CFM_CHARSET
+	cf.dwMask = CFM_COLOR | CFM_EFFECTS | CFM_FACE | CFM_CHARSET;
+
+	cf.crTextColor = color;
+	cf.dwEffects = 0;
+	cf.bCharSet = DEFAULT_CHARSET; // Để Windows tự chọn bảng mã phù hợp (bao gồm tiếng Việt)
+
+	
+	_tcscpy_s(cf.szFaceName, _T("Segoe UI Emoji"));
+
+	// 4. Chọn lại đoạn text vừa thêm
 	long nNewEnd = nStart + sText.GetLength();
 	m_chatHistory.SetSel(nStart, nNewEnd);
 
-	// 6. Áp dụng màu cho đoạn text vừa chọn
-	m_chatHistory.SetSelectionCharFormat(cf);
+	// 5. Áp dụng định dạng
+	m_chatHistory.SetSelectionCharFormat((CHARFORMAT&)cf);
 
-	// 7. Cuộn xuống cuối và bỏ chọn
+	// 6. Cuộn xuống cuối và bỏ chọn
 	m_chatHistory.SetSel(-1, -1);
-
-	// 8. Gửi message để cuộn (thay cho ScrollToCaret)
 	m_chatHistory.PostMessage(EM_SCROLLCARET, 0, 0);
 }
 
@@ -283,8 +308,8 @@ void CMainChatPage::ProcessServerCommand(const std::string& sCommand)
 	if (sCommand.empty()) return;
 
 	// Chuyển sang CString để dễ làm việc với UI
-	USES_CONVERSION;
-	CString sCmdLine(A2T(sCommand.c_str()));
+	CA2W unicodeCmd(sCommand.c_str(), CP_UTF8);
+	CString sCmdLine(unicodeCmd);
 
 	// Tách lệnh và nội dung
 	std::stringstream ss(sCommand);
@@ -368,7 +393,7 @@ void CMainChatPage::OnBnClickedButton1()
 		// --- 5. Hiển thị "local echo" ---
 		// Hiển thị ngay tin nhắn của mình lên cửa sổ chat (màu đỏ)
 		// mà không cần chờ phản hồi SEND_OK từ server
-		AppendTextToHistory(sMessage, RGB(255, 0, 0)); // Màu đỏ
+		AppendTextToHistory(_T("You: ") + sMessage, RGB(255, 0, 0)); // Màu đỏ
 
 		// --- 6. Xóa nội dung đã gõ ---
 		m_editMessage.SetWindowText(_T(""));
@@ -461,7 +486,9 @@ LRESULT CMainChatPage::OnReceiveMessage(WPARAM wParam, LPARAM lParam)
 		if (sSender == m_sCurrentChatUser)
 		{
 			// Hiển thị màu xanh
-			AppendTextToHistory(sMessage, RGB(0, 0, 255));
+			CString sDisplay;
+			sDisplay.Format(_T("%s: %s"), sSender, sMessage);
+			AppendTextToHistory(sDisplay, RGB(0, 0, 255));
 		}
 		else
 		{
@@ -494,11 +521,14 @@ LRESULT CMainChatPage::OnHistoryMessage(WPARAM wParam, LPARAM lParam)
 
 	if (bIsMe)
 	{
-		AppendTextToHistory(sMessage, RGB(255, 0, 0)); // Màu đỏ
+		AppendTextToHistory(_T("You: ") + sMessage, RGB(255, 0, 0));
 	}
 	else
 	{
-		AppendTextToHistory(sMessage, RGB(0, 0, 255)); // Màu xanh
+		// Tin nhắn của đối phương (m_sCurrentChatUser)
+		CString sDisplay;
+		sDisplay.Format(_T("%s: %s"), m_sCurrentChatUser, sMessage);
+		AppendTextToHistory(sDisplay, RGB(0, 0, 255));
 	}
 
 	SysFreeString((BSTR)lParam);

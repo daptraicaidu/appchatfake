@@ -49,7 +49,8 @@ sqlite3_int64 SaveMessageToDb(int senderId, int receiverId, const std::string& c
     if (!g_db) return -1;
 
     sqlite3_stmt* stmt = NULL;
-    const char* sql = "INSERT INTO Messages (SenderId, ReceiverId, Content) VALUES (?, ?, ?);";
+    const char* sql = "INSERT INTO Messages (SenderId, ReceiverId, Content, SentDate) "
+        "VALUES (?, ?, ?, datetime('now', 'localtime'));";
 
     int rc = sqlite3_prepare_v2(g_db, sql, -1, &stmt, NULL);
     if (rc != SQLITE_OK) {
