@@ -13,3 +13,5 @@ void ProcessClientMessage(SOCKET senderSocket, const std::string& senderUsername
 void HandleGetUsersList(SOCKET senderSocket, const std::string& currentUsername);
 
 void HandleGetHistory(SOCKET senderSocket, const std::string& senderUsername, const std::string& otherUsername);
+
+void HandleDownloadRequest(SOCKET senderSocket, const std::string& senderUsername, const std::string& otherUsername);

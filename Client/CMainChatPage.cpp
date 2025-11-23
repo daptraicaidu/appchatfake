@@ -11,9 +11,10 @@
 
 IMPLEMENT_DYNAMIC(CMainChatPage, CDialogEx)
 
-CMainChatPage::CMainChatPage(SOCKET hSocket, CWnd* pParent /*=nullptr*/)
+CMainChatPage::CMainChatPage(SOCKET hSocket, CString sUsername, CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_DIALOG1, pParent),
 	m_hSocket(hSocket),         // Lưu socket
+	m_sMyUsername(sUsername),
 	m_hRecvThread(NULL),      // Khởi tạo Handle luồng
 	m_hStopEvent(NULL),       // Khởi tạo Event
 	m_sCurrentChatUser(_T("")) // Chưa chọn ai
@@ -44,11 +45,13 @@ BEGIN_MESSAGE_MAP(CMainChatPage, CDialogEx)
 
 	// --- Map các Message tùy chỉnh từ luồng ---
 	ON_MESSAGE(WM_USER_UPDATE_USERS, &CMainChatPage::OnUpdateUsers)
+	ON_MESSAGE(WM_USER_UPDATE_STATUS, &CMainChatPage::OnUserStatusUpdate)
 	ON_MESSAGE(WM_USER_RECV_MSG, &CMainChatPage::OnReceiveMessage)
 	ON_MESSAGE(WM_USER_HISTORY_START, &CMainChatPage::OnHistoryStart)
 	ON_MESSAGE(WM_USER_HISTORY_MSG, &CMainChatPage::OnHistoryMessage)
 	ON_MESSAGE(WM_USER_HISTORY_END, &CMainChatPage::OnHistoryEnd)
 	ON_MESSAGE(WM_USER_CONNECTION_LOST, &CMainChatPage::OnConnectionLost)
+	ON_MESSAGE(WM_USER_DOWN_COMPLETED, &CMainChatPage::OnDownloadCompleted)
 END_MESSAGE_MAP()
 
 #ifndef EM_SETTYPOGRAPHYOPTIONS
@@ -63,11 +66,14 @@ BOOL CMainChatPage::OnInitDialog()
 {
 	CDialogEx::OnInitDialog();
 
-	SetWindowText(_T("Main Chat"));
+	CString sTitle;
+	sTitle.Format(_T("Main Chat - %s"), m_sMyUsername);
+	SetWindowText(sTitle);
 	// --- 1. Cấu hình List Control ---
 	// Thiết lập kiểu xem "Report" và thêm cột "Username"
 	m_listUsers.SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
-	m_listUsers.InsertColumn(0, _T("Username"), LVCFMT_LEFT, 200);
+	m_listUsers.InsertColumn(0, _T("Username"), LVCFMT_LEFT, 180);
+	m_listUsers.InsertColumn(1, _T("Status"), LVCFMT_LEFT, 100);
 
 	// --- 2. Khởi tạo sự kiện Stop ---
 	// CreateEvent (NULL, TRUE, FALSE, NULL)
@@ -105,7 +111,7 @@ BOOL CMainChatPage::OnInitDialog()
 	cf.dwMask = CFM_FACE | CFM_SIZE | CFM_CHARSET;
 
 	_tcscpy_s(cf.szFaceName, _T("Segoe UI Emoji"));
-	cf.yHeight = 220;
+	cf.yHeight = 200;
 	cf.bCharSet = DEFAULT_CHARSET;
 
 	m_chatHistory.SetDefaultCharFormat((CHARFORMAT&)cf);
@@ -197,32 +203,26 @@ void CMainChatPage::AppendTextToHistory(const CString& sText, COLORREF color)
 	// 2. Thêm text và xuống dòng
 	m_chatHistory.ReplaceSel(sText + _T("\r\n"));
 
-	// 3. Chuẩn bị định dạng
-	CHARFORMAT2 cf; // Dùng CHARFORMAT2 để hỗ trợ tốt hơn nếu có
+	// 3. Chuẩn bị định dạng (Giữ nguyên code của bạn)
+	CHARFORMAT2 cf;
 	memset(&cf, 0, sizeof(CHARFORMAT2));
 	cf.cbSize = sizeof(CHARFORMAT2);
-
-	// --- SỬA ĐỔI QUAN TRỌNG ---
-	// Thêm cờ CFM_CHARSET
 	cf.dwMask = CFM_COLOR | CFM_EFFECTS | CFM_FACE | CFM_CHARSET;
-
 	cf.crTextColor = color;
 	cf.dwEffects = 0;
-	cf.bCharSet = DEFAULT_CHARSET; // Để Windows tự chọn bảng mã phù hợp (bao gồm tiếng Việt)
-
-	
+	cf.bCharSet = DEFAULT_CHARSET;
 	_tcscpy_s(cf.szFaceName, _T("Segoe UI Emoji"));
 
-	// 4. Chọn lại đoạn text vừa thêm
+	// 4. Chọn lại đoạn text vừa thêm và áp dụng format
 	long nNewEnd = nStart + sText.GetLength();
 	m_chatHistory.SetSel(nStart, nNewEnd);
-
-	// 5. Áp dụng định dạng
 	m_chatHistory.SetSelectionCharFormat((CHARFORMAT&)cf);
 
-	// 6. Cuộn xuống cuối và bỏ chọn
-	m_chatHistory.SetSel(-1, -1);
-	m_chatHistory.PostMessage(EM_SCROLLCARET, 0, 0);
+	// 5. Cuộn xuống cuối (SỬA LẠI ĐOẠN NÀY)
+	m_chatHistory.SetSel(-1, -1); // Bỏ chọn
+
+	// Thay vì EM_SCROLLCARET, dùng WM_VSCROLL để ép cuộn xuống đáy
+	m_chatHistory.PostMessage(WM_VSCROLL, SB_BOTTOM, 0);
 }
 
 // =========================================================================
@@ -329,6 +329,12 @@ void CMainChatPage::ProcessServerCommand(const std::string& sCommand)
 		// Dùng CString::AllocSysString để tạo bản sao
 		PostMessage(WM_USER_UPDATE_USERS, 0, (LPARAM)sData.AllocSysString());
 	}
+	else if (command == "STATUS_UPDATE")
+	{
+		// Định dạng: STATUS_UPDATE <username> <status>
+		// sData sẽ là: "username status"
+		PostMessage(WM_USER_UPDATE_STATUS, 0, (LPARAM)sData.AllocSysString());
+	}
 	else if (command == "RECV")
 	{
 		// Định dạng: RECV <sender_username> <Nội dung>
@@ -351,9 +357,61 @@ void CMainChatPage::ProcessServerCommand(const std::string& sCommand)
 	{
 		PostMessage(WM_USER_HISTORY_END);
 	}
+	else if (command == "DOWN_START")
+	{
+		m_sDownloadBuffer.clear(); // Xóa buffer cũ
+	}
+	else if (command == "DOWN_LINE")
+	{
+		// Cấu trúc: DOWN_LINE [Time] Name: Content
+		// Lấy toàn bộ phần sau chữ "DOWN_LINE "
+		size_t firstSpace = sCommand.find(' ');
+		if (firstSpace != std::string::npos) {
+			std::string lineContent = sCommand.substr(firstSpace + 1);
+			m_sDownloadBuffer += lineContent + "\r\n"; // Thêm xuống dòng Windows
+		}
+	}
+	else if (command == "DOWN_END")
+	{
+		// Báo về UI thread là đã tải xong, hãy mở Dialog lưu
+		PostMessage(WM_USER_DOWN_COMPLETED);
+	}
 	// TODO: Xử lý các lệnh lỗi từ server (SEND_OK, ERR_...) nếu cần
 }
 
+// CMainChatPage.cpp
+
+LRESULT CMainChatPage::OnUserStatusUpdate(WPARAM wParam, LPARAM lParam)
+{
+	CString sData = (LPCTSTR)lParam; // "username status"
+
+	// Tách Username và Status
+	int nPos = sData.Find(_T(' '));
+	if (nPos != -1)
+	{
+		CString sTargetUser = sData.Left(nPos);
+		CString sNewStatus = sData.Mid(nPos + 1);
+
+		// Duyệt qua ListCtrl để tìm user cần update
+		int nCount = m_listUsers.GetItemCount();
+		for (int i = 0; i < nCount; i++)
+		{
+			CString sUserInList = m_listUsers.GetItemText(i, 0);
+			if (sUserInList == sTargetUser)
+			{
+				m_listUsers.SetItemText(i, 1, sNewStatus); // Cập nhật cột 1 (Status)
+				break; // Tìm thấy rồi thì thoát
+			}
+		}
+
+		// Tùy chọn: Nếu là người dùng mới chưa có trong list thì có thể thêm vào
+		// Nhưng để đơn giản thì ta chỉ update người đã có. 
+		// (Nếu muốn thêm mới thì logic: nếu chạy hết vòng for mà không break thì InsertItem)
+	}
+
+	SysFreeString((BSTR)lParam);
+	return 0;
+}
 
 // =========================================================================
 // HANDLERS SỰ KIỆN UI (Chạy trên UI Thread)
@@ -446,23 +504,36 @@ void CMainChatPage::OnLvnItemchangedList1(NMHDR* pNMHDR, LRESULT* pResult)
  */
 LRESULT CMainChatPage::OnUpdateUsers(WPARAM wParam, LPARAM lParam)
 {
-	// lparam là con trỏ CString, phải giải phóng
-	CString sData = (LPCTSTR)lParam;
+	CString sData = (LPCTSTR)lParam; // Ví dụ: "user1:Online user2:Offline"
+	m_listUsers.DeleteAllItems();
 
-	m_listUsers.DeleteAllItems(); // Xóa sạch danh sách cũ
-
-	// sData có dạng: "user1 user2 user3"
-	// Tách chuỗi bằng Tokenize
 	int nPos = 0;
-	CString sUser = sData.Tokenize(_T(" "), nPos);
+	CString sToken = sData.Tokenize(_T(" "), nPos);
 	int nItem = 0;
-	while (!sUser.IsEmpty())
+
+	while (!sToken.IsEmpty())
 	{
-		m_listUsers.InsertItem(nItem++, sUser);
-		sUser = sData.Tokenize(_T(" "), nPos);
+		// sToken có dạng "User:Status"
+		int nSplit = sToken.Find(_T(':'));
+		if (nSplit != -1)
+		{
+			CString sUser = sToken.Left(nSplit);
+			CString sStatus = sToken.Mid(nSplit + 1);
+
+			// Thêm dòng
+			int nIndex = m_listUsers.InsertItem(nItem++, sUser);
+			// Thêm cột Status (cột 1)
+			m_listUsers.SetItemText(nIndex, 1, sStatus);
+		}
+		else
+		{
+			// Dự phòng nếu không có status
+			m_listUsers.InsertItem(nItem++, sToken);
+		}
+
+		sToken = sData.Tokenize(_T(" "), nPos);
 	}
 
-	// Giải phóng CString đã được cấp phát ở luồng kia
 	SysFreeString((BSTR)lParam);
 	return 0;
 }
@@ -540,7 +611,7 @@ LRESULT CMainChatPage::OnHistoryMessage(WPARAM wParam, LPARAM lParam)
  */
 LRESULT CMainChatPage::OnHistoryEnd(WPARAM wParam, LPARAM lParam)
 {
-	// Có thể thêm 1 dòng "Hết lịch sử chat" nếu muốn
+	m_chatHistory.PostMessage(WM_VSCROLL, SB_BOTTOM, 0);
 	return 0;
 }
 
@@ -558,6 +629,90 @@ LRESULT CMainChatPage::OnConnectionLost(WPARAM wParam, LPARAM lParam)
 
 	// Tự động đóng cửa sổ chat
 	EndDialog(IDCANCEL);
+
+	return 0;
+}
+
+
+BOOL CMainChatPage::PreTranslateMessage(MSG* pMsg)
+{
+	// Kiểm tra nếu phím nhấn là Enter (VK_RETURN)
+	if (pMsg->message == WM_KEYDOWN && pMsg->wParam == VK_RETURN)
+	{
+		// Kiểm tra xem focus có đang ở ô nhập tin nhắn không
+		if (GetFocus() == &m_editMessage)
+		{
+			// Gọi hàm xử lý nút Send
+			OnBnClickedButton1();
+			return TRUE; // Đã xử lý xong, không gửi tiếp (để tránh tiếng 'bíp' hoặc đóng dialog)
+		}
+	}
+	return CDialogEx::PreTranslateMessage(pMsg);
+}
+
+
+void CMainChatPage::OnBnClickedButtonSave()
+{
+	if (m_sCurrentChatUser.IsEmpty()) {
+		AfxMessageBox(_T("Chưa chọn người dùng để lưu tin nhắn!"), MB_ICONWARNING);
+		return;
+	}
+
+	// Gửi lệnh yêu cầu tải về
+	// REQ_DOWNLOAD <tên_người_kia>
+	CString sCommand;
+	sCommand.Format(_T("REQ_DOWNLOAD %s"), m_sCurrentChatUser);
+
+	if (SendSocketCommand(sCommand)) {
+		// Có thể hiện trạng thái "Đang tải..." nếu muốn
+		SetWindowText(_T("Đang tải lịch sử chat..."));
+	}
+}
+
+LRESULT CMainChatPage::OnDownloadCompleted(WPARAM wParam, LPARAM lParam)
+{
+	// Trả lại title cũ
+	CString sTitle;
+	sTitle.Format(_T("Main Chat - %s"), m_sMyUsername);
+	SetWindowText(sTitle);
+
+	if (m_sDownloadBuffer.empty()) {
+		AfxMessageBox(_T("Không có lịch sử chat để lưu."), MB_ICONINFORMATION);
+		return 0;
+	}
+
+	// Mở hộp thoại Save
+	CFileDialog dlg(FALSE, _T("txt"), _T("ChatHistory.txt"),
+		OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT,
+		_T("Text Files (*.txt)|*.txt||"));
+
+	if (dlg.DoModal() == IDOK)
+	{
+		CString sFilePath = dlg.GetPathName();
+		CFile file;
+
+		// Mở file ở chế độ Binary để ta tự quản lý encoding
+		if (file.Open(sFilePath, CFile::modeCreate | CFile::modeWrite | CFile::typeBinary))
+		{
+			// 1. Ghi BOM (Byte Order Mark) cho UTF-8
+			// Cái này giúp Notepad nhận biết đây là file UTF-8 và hiển thị đúng Emoji
+			unsigned char bom[] = { 0xEF, 0xBB, 0xBF };
+			file.Write(bom, 3);
+
+			// 2. Ghi nội dung (m_sDownloadBuffer đã là UTF-8 nhận từ server)
+			file.Write(m_sDownloadBuffer.c_str(), (UINT)m_sDownloadBuffer.length());
+
+			file.Close();
+			AfxMessageBox(_T("Đã lưu tin nhắn thành công!"), MB_ICONINFORMATION);
+		}
+		else
+		{
+			AfxMessageBox(_T("Lỗi ghi file!"), MB_ICONERROR);
+		}
+	}
+
+	// Xóa buffer giải phóng bộ nhớ
+	m_sDownloadBuffer.clear();
 
 	return 0;
 }

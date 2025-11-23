@@ -277,6 +277,25 @@ VOID WINAPI ServiceCtrlHandler(DWORD CtrlCode)
     }
 }
 
+// Hàm gửi thông báo trạng thái cho TẤT CẢ user đang online
+// Định dạng lệnh: STATUS_UPDATE <username> <Online/Offline>
+void BroadcastStatus(const std::string& username, const std::string& status)
+{
+    std::string msg = "STATUS_UPDATE " + username + " " + status;
+
+    std::lock_guard<std::mutex> lock(g_onlineUsersMutex);
+
+    // SỬA LỖI: Dùng vòng lặp kiểu C++ cũ để tránh lỗi version và lỗi trùng tên biến
+    for (auto const& item : g_onlineUsers)
+    {
+        // item.first là Key (Username)
+        // item.second là Value (Socket)
+
+        SOCKET clientSock = item.second; // Đặt tên là clientSock để không trùng với hàm socket()
+
+        SendResponse(clientSock, msg);
+    }
+}
 
 // Hàm chờ client và xử lý xác thực/chat
 DWORD WINAPI ClientThreadHandler(LPVOID p) {
@@ -332,18 +351,18 @@ DWORD WINAPI ClientThreadHandler(LPVOID p) {
                     std::lock_guard<std::mutex> lock(g_onlineUsersMutex);
                     g_onlineUsers[loggedInUsername] = clientSocket;
                 }
-                
+                SendResponse(clientSocket, ResponseToString(response));
+                BroadcastStatus(loggedInUsername, "Online");
+                break;
+            }
+            else {
+                SendResponse(clientSocket, ResponseToString(response));
             }
         }
         else
         {
+            SendResponse(clientSocket, "ERR_UNKNOWN");
             DEBUG_LOG(L"Client [%d] gửi lệnh không hợp lệ: %S", (int)clientSocket, commandLine.c_str());
-        }
-
-        SendResponse(clientSocket, ResponseToString(response));
-
-        if (loggedIn) {
-            break;
         }
 
     }
@@ -369,7 +388,7 @@ DWORD WINAPI ClientThreadHandler(LPVOID p) {
 
                 // Nếu messageLine không rỗng (tránh trường hợp chỉ gửi \n)
                 if (!messageLine.empty()) {
-                    // Gọi hàm xử lý tin nhắn
+                    // Gọi hàm xử lý tác vụ
                     ProcessClientMessage(clientSocket, loggedInUsername, messageLine);
                 }
             }
@@ -391,8 +410,13 @@ DWORD WINAPI ClientThreadHandler(LPVOID p) {
     // Dọn dẹp user khỏi map online
     if (loggedIn)
     {
-        std::lock_guard<std::mutex> lock(g_onlineUsersMutex);
-        g_onlineUsers.erase(loggedInUsername);
+        {
+            std::lock_guard<std::mutex> lock(g_onlineUsersMutex);
+            g_onlineUsers.erase(loggedInUsername);
+        }
+
+        // Thông báo cho mọi người biết user này đã Offline
+        BroadcastStatus(loggedInUsername, "Offline");
     }
 
     // CLEAN

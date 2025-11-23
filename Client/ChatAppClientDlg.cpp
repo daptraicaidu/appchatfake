@@ -270,7 +270,7 @@ void CChatAppClientDlg::OnBnClickedLogButton()
         SOCKET hSocket = m_client.GetSocket();
         m_client.DetachSocket();
         this->ShowWindow(SW_HIDE);
-        CMainChatPage chatDlg(hSocket, this);
+        CMainChatPage chatDlg(hSocket, cstrUser, this);
         chatDlg.DoModal();
         EndDialog(IDOK);
     }

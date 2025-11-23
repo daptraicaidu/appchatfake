@@ -180,6 +180,12 @@ void ProcessClientMessage(SOCKET senderSocket, const std::string& senderUsername
         ss >> otherUsername;
         HandleGetHistory(senderSocket, senderUsername, otherUsername);
     }
+    else if (command == "REQ_DOWNLOAD")
+    {
+        std::string otherUsername;
+        ss >> otherUsername;
+        HandleDownloadRequest(senderSocket, senderUsername, otherUsername);
+    }
     // TODO: Thêm các lệnh khác
     else
     {
@@ -199,10 +205,7 @@ void HandleGetUsersList(SOCKET senderSocket, const std::string& currentUsername)
 
     sqlite3_stmt* stmt = NULL;
     // Lấy tất cả Username, sắp xếp theo tên
-    const char* sql =
-        "SELECT Username FROM Users "
-        "WHERE Username <> ? "
-        "ORDER BY Username;";
+    const char* sql = "SELECT Username FROM Users WHERE Username <> ? ORDER BY Username;";
 
     int rc = sqlite3_prepare_v2(g_db, sql, -1, &stmt, NULL);
     if (rc != SQLITE_OK) {
@@ -212,13 +215,7 @@ void HandleGetUsersList(SOCKET senderSocket, const std::string& currentUsername)
     }
 
     // Bind username hiện tại để loại ra
-    sqlite3_bind_text(
-        stmt,
-        1,
-        currentUsername.c_str(),
-        -1,
-        SQLITE_TRANSIENT
-    );
+    sqlite3_bind_text(stmt, 1, currentUsername.c_str(), -1, SQLITE_TRANSIENT);
 
     // Định dạng phản hồi: USERS_LIST <user1> <user2> <user3> ...
     // Ví dụ: USERS_LIST an admin testuser
@@ -227,8 +224,19 @@ void HandleGetUsersList(SOCKET senderSocket, const std::string& currentUsername)
     while ((rc = sqlite3_step(stmt)) == SQLITE_ROW)
     {
         const char* username = (const char*)sqlite3_column_text(stmt, 0);
+        std::string sUser(username);
+        std::string status = "Offline";
+
+        // Kiểm tra user có trong map online không
+        {
+            std::lock_guard<std::mutex> lock(g_onlineUsersMutex);
+            if (g_onlineUsers.find(sUser) != g_onlineUsers.end()) {
+                status = "Online";
+            }
+        }
+
         response += " ";
-        response += username;
+        response += sUser + ":" + status; // Gửi dạng User:Status
     }
 
     sqlite3_finalize(stmt);
@@ -314,4 +322,71 @@ void HandleGetHistory(SOCKET senderSocket, const std::string& senderUsername, co
     // Định dạng: HISTORY_END
     SendResponse(senderSocket, "HISTORY_END");
     DEBUG_LOG(L"Hoàn tất gửi lịch sử chat cho Client [%d]", (int)senderSocket);
+}
+
+
+void HandleDownloadRequest(SOCKET senderSocket, const std::string& senderUsername, const std::string& otherUsername)
+{
+    if (otherUsername.empty()) return;
+
+    int senderId = GetUserId(senderUsername);
+    int otherId = GetUserId(otherUsername);
+
+    if (senderId == -1 || otherId == -1) {
+        SendResponse(senderSocket, "ERR_USER_NOT_FOUND");
+        return;
+    }
+
+    if (!g_db) return;
+
+    sqlite3_stmt* stmt = NULL;
+
+    // Query lấy cả SenderId và SentDate
+    const char* sql = "SELECT SenderId, Content, SentDate FROM Messages "
+        "WHERE (SenderId = ? AND ReceiverId = ?) OR (SenderId = ? AND ReceiverId = ?) "
+        "ORDER BY SentDate ASC;";
+
+    int rc = sqlite3_prepare_v2(g_db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        DEBUG_LOG(L"Lỗi prepare (Download): %S", sqlite3_errmsg(g_db));
+        return;
+    }
+
+    sqlite3_bind_int(stmt, 1, senderId);
+    sqlite3_bind_int(stmt, 2, otherId);
+    sqlite3_bind_int(stmt, 3, otherId);
+    sqlite3_bind_int(stmt, 4, senderId);
+
+    // 1. Gửi tín hiệu bắt đầu tải
+    SendResponse(senderSocket, "DOWN_START");
+
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW)
+    {
+        int msgSenderId = sqlite3_column_int(stmt, 0);
+        const char* content = (const char*)sqlite3_column_text(stmt, 1);
+        const char* sentDate = (const char*)sqlite3_column_text(stmt, 2); // Định dạng DB: YYYY-MM-DD HH:MM:SS
+
+        // Xác định tên người hiển thị
+        std::string displayName = (msgSenderId == senderId) ? senderUsername : otherUsername;
+
+        // Cắt chuỗi ngày tháng cho gọn (bỏ giây nếu muốn), ví dụ lấy: 2025-11-23 10:15
+        // Chuỗi DB gốc: 2025-11-23 10:15:30
+        std::string strDate(sentDate);
+        //if (strDate.length() > 16) strDate = strDate.substr(0, 16);
+
+        // Format: [YYYY-MM-DD HH:MM:SS] Name: Content
+        // Lưu ý: Content có thể chứa khoảng trắng, nên ta dùng 1 ký tự đặc biệt để tách lệnh ở Client
+        // Tuy nhiên ở đây ta gửi nguyên dòng "DATA <dòng_text_hoàn_chỉnh>"
+
+        std::string fullLine = "[" + strDate + "] " + displayName + ": " + std::string(content);
+
+        // Gửi về Client: DOWN_LINE <Nội dung>
+        SendResponse(senderSocket, "DOWN_LINE " + fullLine);
+    }
+
+    sqlite3_finalize(stmt);
+
+    // 2. Gửi tín hiệu kết thúc
+    SendResponse(senderSocket, "DOWN_END");
+    DEBUG_LOG(L"Đã gửi dữ liệu tải xuống cho %S", senderUsername.c_str());
 }
