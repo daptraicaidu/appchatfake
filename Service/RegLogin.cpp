@@ -97,7 +97,7 @@ AuthResponse ProcessRegistration(const std::string& username, const std::string&
 
     // INSERT
     sqlite3_stmt* stmt = NULL;
-    const char* sql = "INSERT INTO Users (Username, PasswordHash) VALUES (?, ?);";
+    const char* sql = "INSERT INTO Users (Username, PasswordHash, CreateDate) VALUES (?, ?, datetime('now', 'localtime'));";
 
     int rc = sqlite3_prepare_v2(g_db, sql, -1, &stmt, NULL);
     if (rc != SQLITE_OK) {

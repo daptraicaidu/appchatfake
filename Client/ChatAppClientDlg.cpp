@@ -250,7 +250,7 @@ void CChatAppClientDlg::OnBnClickedLogButton()
     std::string user = std::string(CT2A(cstrUser));
     std::string pass = std::string(CT2A(cstrPass));
 
-    std::string command = std::string("LOGIN ") + user + " " + pass + "\n";
+    std::string command = std::string("LOGIN ") + user + " " + pass;
 
 
     // Gửi lệnh
@@ -312,7 +312,7 @@ void CChatAppClientDlg::OnBnClickedRegButton()
     std::string user = std::string(CT2A(cstrUser));
     std::string pass = std::string(CT2A(cstrPass));
 
-    std::string command = std::string("REG ") + user + " " + pass + "\n";
+    std::string command = std::string("REG ") + user + " " + pass;
 
 
     // Gửi lệnh

@@ -41,6 +41,7 @@ BEGIN_MESSAGE_MAP(CMainChatPage, CDialogEx)
 	// --- Map các sự kiện UI ---
 	ON_WM_DESTROY() // Bắt sự kiện đóng cửa sổ
 	ON_BN_CLICKED(IDC_BUTTON1, &CMainChatPage::OnBnClickedButton1) // Nút Send
+	ON_BN_CLICKED(IDC_BUTTON_SAVE, &CMainChatPage::OnBnClickedButtonSave) // Nút Save Chat History
 	ON_NOTIFY(LVN_ITEMCHANGED, IDC_LIST1, &CMainChatPage::OnLvnItemchangedList1) // Click List User
 
 	// --- Map các Message tùy chỉnh từ luồng ---

@@ -336,6 +336,7 @@ DWORD WINAPI ClientThreadHandler(LPVOID p) {
         {
             DEBUG_LOG(L"Client [%d] yêu cầu REG user: %S", (int)clientSocket, username.c_str());
             response = ProcessRegistration(username, password);
+            SendResponse(clientSocket, ResponseToString(response));
         }
         else if (command == "LOGIN" && !username.empty() && !password.empty())
         {
